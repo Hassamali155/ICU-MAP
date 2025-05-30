@@ -1,0 +1,175 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AP ICU Mortality Risk Score Calculator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 40px;
+      background: #f5f7fa;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #004085;
+    }
+    .calculator {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    input[type="checkbox"], input[type="radio"] {
+      transform: scale(1.3);
+      margin-right: 10px;
+    }
+    .result {
+      margin-top: 30px;
+      padding: 20px;
+      background: #e2f0d9;
+      border-left: 6px solid #28a745;
+      border-radius: 6px;
+      font-size: 1.1em;
+    }
+    .warning {
+      margin-top: 30px;
+      padding: 20px;
+      background: #fff3cd;
+      border-left: 6px solid #ffc107;
+      border-radius: 6px;
+    }
+    canvas {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>ICU-MAP: ICU Mortality Assessment for Pancreatitis</h1>
+  <div class="calculator">
+    <label><input type="checkbox" id="lactate">Lactic Acid > 4 mmol/L (3 points)</label>
+    <label><input type="checkbox" id="bilirubin">Total Bilirubin > 2 mg/dL (1 point)</label>
+    <label><input type="checkbox" id="bun">BUN > 20 mg/dL (1 point)</label>
+    <label><input type="checkbox" id="inr">INR > 1.5 (4 points)</label>
+    <label><input type="checkbox" id="albumin">Albumin < 2.5 g/dL (2 points)</label>
+
+    <div style="margin-top: 30px;">
+      <strong>Prediction Interval:</strong><br>
+      <label><input type="radio" name="dayToggle" value="7" checked>7-day mortality</label>
+      <label><input type="radio" name="dayToggle" value="30">30-day mortality</label>
+    </div>
+
+    <div class="result" id="output">
+      Your risk score is: <strong>0</strong><br>
+      Risk category: <strong>Low risk</strong><br><br>
+      Based on a cutoff score of 3:<br>
+      - Sensitivity: 87.9%<br>
+      - Specificity: 85.3%<br>
+      - Positive Predictive Value (PPV): 76.3%<br>
+      - Negative Predictive Value (NPV): 92.9%
+    </div>
+
+    <canvas id="riskChart" width="400" height="250"></canvas>
+
+    
+    <div class="result" style="background: #e9ecef; border-left-color: #6c757d;">
+      <strong>Tool Summary:</strong><br><br>
+      The ICU-MAP score is designed to assist in early risk stratification of acute pancreatitis patients admitted to the ICU. 
+      It uses five routinely available laboratory values to accurately predict 7-day mortality (AUC 0.93) and 30-day mortality (AUC 0.84). 
+      Its strengths lie in its simplicity, excellent short-term predictive power, and high negative predictive value, making it useful for early triage and escalation planning. 
+      However, it is not intended to predict complications like necrosis or long-term outcomes, and performance may vary outside the ICU setting or across etiologies of AP.
+    </div>
+
+    <div class="warning">
+      ⚠️ <strong>Disclaimer:</strong> This calculator is a research tool based on retrospective data and has not undergone external validation. 
+      It is provided for academic and educational purposes only and should not be used as a substitute for clinical judgment. 
+      The developers assume no responsibility for clinical decisions made using this tool. Always consult appropriate medical professionals and institutional protocols when managing patients.
+    </div>
+    
+      ⚠️ This tool has not been externally validated. Use for educational purposes only. Not intended for clinical decision-making without appropriate supervision.
+    </div>
+  </div>
+
+  <script>
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    const radios = document.querySelectorAll('input[name="dayToggle"]');
+    const output = document.getElementById('output');
+    const ctx = document.getElementById('riskChart').getContext('2d');
+
+    let riskChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Lactic Acid', 'Bilirubin', 'BUN', 'INR', 'Albumin'],
+        datasets: [{
+          label: 'Points',
+          data: [0, 0, 0, 0, 0],
+          backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545', '#17a2b8']
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 5
+          }
+        }
+      }
+    });
+
+    function calculateScore() {
+      const values = [
+        document.getElementById('lactate').checked ? 3 : 0,
+        document.getElementById('bilirubin').checked ? 1 : 0,
+        document.getElementById('bun').checked ? 1 : 0,
+        document.getElementById('inr').checked ? 4 : 0,
+        document.getElementById('albumin').checked ? 2 : 0
+      ];
+      const score = values.reduce((a, b) => a + b, 0);
+      const risk = score >= 3 ? 'High risk' : 'Low risk';
+      const selectedDay = document.querySelector('input[name="dayToggle"]:checked').value;
+
+      let stats;
+      if (selectedDay === "7") {
+        stats = `
+        - Sensitivity: 87.9%<br>
+        - Specificity: 85.3%<br>
+        - Positive Predictive Value (PPV): 76.3%<br>
+        - Negative Predictive Value (NPV): 92.9%<br><br>
+        This reflects the likelihood of <strong>7-day mortality</strong>.`;
+      } else {
+        stats = `
+        - Sensitivity: 77.0%<br>
+        - Specificity: 77.8%<br>
+        - Positive Predictive Value (PPV): 51.4%<br>
+        - Negative Predictive Value (NPV): 91.8%<br><br>
+        A high-risk score suggests elevated risk of <strong>7-day mortality</strong>, and continued risk by <strong>30 days</strong>.`;
+      }
+
+      output.innerHTML = `
+        Your risk score is: <strong>${score}</strong><br>
+        Risk category: <strong>${risk}</strong><br><br>
+        Based on a cutoff score of 3:<br>
+        ${stats}
+      `;
+
+      riskChart.data.datasets[0].data = values;
+      riskChart.update();
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', calculateScore));
+    radios.forEach(rb => rb.addEventListener('change', calculateScore));
+  </script>
+
+</body>
+</html>
